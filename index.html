@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Enzyme Kinetics Interactive</title>
+    <style>
+        :root {
+            --bg-color: #ffffff;
+            --text-color: #111;
+            --line-color: #aa00ff;
+            --grid-color: #d1d1d1;
+            --highlight-bg: rgba(0, 0, 0, 0.05);
+            --warning-color: #444; /* Dark Grey */
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #fafafa;
+            color: var(--text-color);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 15px;
+            margin: 0;
+            min-height: 100vh;
+            box-sizing: border-box;
+        }
+
+        .container {
+            background-color: var(--bg-color);
+            padding: 20px;
+            border-radius: 16px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+            width: 100%;
+            max-width: 600px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Heading */
+        h1 {
+            margin: 0 0 5px 0;
+            text-align: center;
+            font-weight: 800;
+            font-size: clamp(0.9rem, 4vw, 1.4rem);
+            color: #000;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .sub-heading {
+            text-align: center;
+            font-size: 0.7rem;
+            color: rgba(0, 0, 0, 0.5);
+            margin-bottom: 20px;
+            font-weight: 500;
+            letter-spacing: 0.5px;
+        }
+
+        /* Footer Style */
+        .footer-text {
+            text-align: center;
+            font-size: 0.7rem;
+            color: rgba(0, 0, 0, 0.5);
+            /* Pushed down by space equivalent to 1 sentence (~45px) */
+            margin-top: 45px; 
+            font-weight: 500;
+            letter-spacing: 0.5px;
+        }
+
+        /* Controls Grid */
+        .controls {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .label-bold {
+            font-weight: 700;
+            font-size: 0.75rem;
+            margin-bottom: 6px;
+            color: #444;
+            text-transform: uppercase;
+        }
+
+        /* Custom Dropdown Styling */
+        .select-wrapper {
+            position: relative;
+        }
+        
+        select {
+            padding: 12px;
+            padding-right: 35px; /* Space for arrow */
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            background-color: #f9f9f9;
+            font-size: 0.9rem;
+            color: #333;
+            width: 100%;
+            outline: none;
+            cursor: pointer;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+        }
+
+        /* Custom Arrow */
+        .select-arrow {
+            position: absolute;
+            top: 50%;
+            right: 12px;
+            transform: translateY(-50%);
+            pointer-events: none;
+            width: 10px;
+            height: 10px;
+        }
+        
+        .select-arrow::before {
+            content: '';
+            display: block;
+            width: 0; 
+            height: 0; 
+            border-left: 5px solid transparent;
+            border-right: 5px solid transparent;
+            border-top: 6px solid #555;
+        }
+
+        /* Graph Area */
+        .graph-wrapper {
+            position: relative;
+            width: 100%;
+            padding-top: 70%; /* Aspect Ratio */
+            margin-bottom: 15px;
+        }
+
+        .canvas-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Axis Labels */
+        .axis-label {
+            position: absolute;
+            font-size: 0.8rem;
+            font-weight: 800;
+            color: #000;
+            white-space: nowrap;
+            /* Transparent background */
+            background: transparent;
+            padding: 2px 4px;
+            pointer-events: none;
+            border-radius: 4px;
+            z-index: 5;
+        }
+
+        #y-label {
+            /* Positioned above the top margin to avoid arrow overlap */
+            top: -10px;
+            left: 10px;
+            text-align: left;
+        }
+
+        #x-label {
+            /* Shifted up to be closer to axis (0px instead of -25px) */
+            bottom: 0px; 
+            right: 0;
+            text-align: right;
+        }
+
+        /* Explanation Box */
+        .explanation-box {
+            background-color: var(--highlight-bg);
+            color: #222;
+            padding: 15px;
+            border-radius: 10px;
+            font-size: 0.85rem;
+            line-height: 1.5;
+            border: 1px solid rgba(0,0,0,0.05);
+        }
+
+        .explanation-box ul {
+            padding-left: 20px;
+            margin: 0;
+        }
+
+        .explanation-box li {
+            margin-bottom: 8px;
+        }
+        
+        .explanation-box li:last-child {
+            margin-bottom: 0;
+        }
+
+        .warning {
+            color: var(--warning-color);
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>Enzyme Kinetics</h1>
+        <div class="sub-heading">Biology@RI</div>
+
+        <div class="controls">
+            <div class="control-group">
+                <div class="label-bold">y axis</div>
+                <div class="select-wrapper">
+                    <select id="y-axis" onchange="updateInteractive()">
+                        <option value="rate">Rate of Reaction</option>
+                        <option value="sub_conc">Substrate Concentration</option>
+                        <option value="prod_conc">Product Concentration</option>
+                        <option value="vol_prod">Volume of Product</option>
+                    </select>
+                    <div class="select-arrow"></div>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <div class="label-bold">x axis</div>
+                <div class="select-wrapper">
+                    <select id="x-axis" onchange="updateInteractive()">
+                        <option value="time">Time</option>
+                        <option value="sub_conc">Substrate Concentration</option>
+                        <option value="enz_conc">Enzyme Concentration</option>
+                        <option value="ph">pH</option>
+                        <option value="temp">Temperature</option>
+                    </select>
+                    <div class="select-arrow"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="graph-wrapper">
+            <div class="canvas-container">
+                <canvas id="graphCanvas"></canvas>
+            </div>
+            <!-- Labels -->
+            <div id="y-label" class="axis-label">Rate</div>
+            <div id="x-label" class="axis-label">Time</div>
+        </div>
+
+        <div class="explanation-box" id="explanation-text">
+            <!-- Dynamic Text -->
+        </div>
+
+        <div class="footer-text">All rights reserved</div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('graphCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // High resolution setup
+        const logicalWidth = 800;
+        const logicalHeight = 560;
+        canvas.width = logicalWidth;
+        canvas.height = logicalHeight;
+
+        // Margins adjusted to ensure labels don't touch arrows
+        const margin = { top: 40, right: 30, bottom: 50, left: 30 };
+        const graphW = logicalWidth - margin.left - margin.right;
+        const graphH = logicalHeight - margin.top - margin.bottom;
+
+        function updateInteractive() {
+            const yVar = document.getElementById('y-axis').value;
+            const xVar = document.getElementById('x-axis').value;
+
+            // Update Labels
+            document.getElementById('y-label').textContent = getLabelName(yVar);
+            document.getElementById('x-label').textContent = getLabelName(xVar);
+
+            // Clear and Draw
+            ctx.clearRect(0, 0, logicalWidth, logicalHeight);
+            
+            drawGrid();
+            const graphType = drawCurve(xVar, yVar); 
+            drawAxes(); 
+
+            // Update Text
+            updateExplanation(xVar, yVar, graphType);
+        }
+
+        function getLabelName(val) {
+            const map = {
+                "rate": "Rate of Reaction",
+                "sub_conc": "[Substrate]",
+                "prod_conc": "[Product]",
+                "vol_prod": "Vol of Product",
+                "ph": "pH",
+                "temp": "Temperature",
+                "time": "Time",
+                "enz_conc": "[Enzyme]"
+            };
+            return map[val];
+        }
+
+        function drawGrid() {
+            ctx.beginPath();
+            ctx.strokeStyle = "#d1d1d1"; 
+            ctx.lineWidth = 1;
+
+            for (let i = 0; i <= 10; i++) {
+                // X grid
+                let x = margin.left + (graphW * i / 10);
+                ctx.moveTo(x, margin.top);
+                ctx.lineTo(x, logicalHeight - margin.bottom);
+
+                // Y grid
+                let y = margin.top + (graphH * i / 10);
+                ctx.moveTo(margin.left, y);
+                ctx.lineTo(logicalWidth - margin.right, y);
+            }
+            ctx.stroke();
+        }
+
+        function drawAxes() {
+            ctx.beginPath();
+            ctx.strokeStyle = "#000000";
+            ctx.lineWidth = 3;
+            ctx.lineCap = "round";
+
+            // Y Axis
+            ctx.moveTo(margin.left, logicalHeight - margin.bottom);
+            ctx.lineTo(margin.left, margin.top);
+            // Y Arrow
+            ctx.moveTo(margin.left - 7, margin.top + 10);
+            ctx.lineTo(margin.left, margin.top);
+            ctx.lineTo(margin.left + 7, margin.top + 10);
+
+            // X Axis
+            ctx.moveTo(margin.left, logicalHeight - margin.bottom);
+            ctx.lineTo(logicalWidth - margin.right, logicalHeight - margin.bottom);
+            // X Arrow
+            ctx.moveTo(logicalWidth - margin.right - 10, logicalHeight - margin.bottom - 7);
+            ctx.lineTo(logicalWidth - margin.right, logicalHeight - margin.bottom);
+            ctx.lineTo(logicalWidth - margin.right - 10, logicalHeight - margin.bottom + 7);
+
+            ctx.stroke();
+        }
+
+        function drawCurve(xVar, yVar) {
+            ctx.beginPath();
+            ctx.strokeStyle = "#aa00ff"; // Purple
+            ctx.lineWidth = 6; 
+            ctx.lineCap = "round";
+            ctx.lineJoin = "round";
+
+            const steps = 400;
+            let type = "standard"; 
+            let valid = true;
+
+            for (let i = 0; i <= steps; i++) {
+                let xNorm = i / steps; 
+                let yNorm = 0;
+
+                /* --- BIOLOGICAL GRAPH LOGIC --- */
+                
+                // 1. Rate vs [Substrate] 
+                if (yVar === 'rate' && xVar === 'sub_conc') {
+                    // Reverted to logic that hits 1.0 explicitly and stays horizontal
+                    let val = (1.25 * xNorm) / (0.15 + xNorm); 
+                    if (val > 1.0) val = 1.0; 
+                    yNorm = val;
+                }
+                
+                // 2. Rate vs [Enzyme] (Linear)
+                else if (yVar === 'rate' && xVar === 'enz_conc') {
+                    yNorm = xNorm;
+                }
+
+                // 3. Rate vs Temp (Skewed Bell)
+                else if (yVar === 'rate' && xVar === 'temp') {
+                    let opt = 0.7; 
+                    let width = xNorm < opt ? 0.25 : 0.08;
+                    yNorm = Math.exp(-0.5 * Math.pow((xNorm - opt)/width, 2));
+                }
+
+                // 4. Rate vs pH (Bell centered)
+                else if (yVar === 'rate' && xVar === 'ph') {
+                    let center = 0.55; // Between grid 5 and 6
+                    yNorm = Math.exp(-50 * Math.pow(xNorm - center, 2));
+                }
+
+                // 5. Product vs Time (Plateau)
+                else if ((yVar === 'vol_prod' || yVar === 'prod_conc') && xVar === 'time') {
+                    yNorm = 1 - Math.exp(-5 * xNorm);
+                }
+
+                // 6. Substrate vs Time (Decay)
+                else if (yVar === 'sub_conc' && xVar === 'time') {
+                    yNorm = Math.exp(-5 * xNorm);
+                }
+
+                /* --- RARE / DERIVED COMBINATIONS --- */
+
+                // 7. [Substrate] vs pH (Slim Inverse Bell)
+                else if (yVar === 'sub_conc' && xVar === 'ph') {
+                    let center = 0.55; 
+                    let widthCoef = 150; 
+                    let rateEffect = Math.exp(-widthCoef * Math.pow(xNorm - center, 2));
+                    yNorm = 1 - (rateEffect * 0.95);
+                    type = "rare_sub_ph"; 
+                }
+
+                // 8. Rate vs Time (Decay)
+                else if (yVar === 'rate' && xVar === 'time') {
+                    yNorm = Math.exp(-5 * xNorm);
+                    type = "rare_rate_time";
+                }
+
+                // 9. Product vs Temp
+                else if ((yVar === 'vol_prod' || yVar === 'prod_conc') && xVar === 'temp') {
+                    let opt = 0.7;
+                    let width = xNorm < opt ? 0.25 : 0.08;
+                    yNorm = Math.exp(-0.5 * Math.pow((xNorm - opt)/width, 2));
+                    type = "rare_prod_temp";
+                }
+
+                // 10. Product vs pH
+                else if ((yVar === 'vol_prod' || yVar === 'prod_conc') && xVar === 'ph') {
+                    let center = 0.55;
+                    yNorm = Math.exp(-50 * Math.pow(xNorm - center, 2));
+                    type = "rare_prod_ph";
+                }
+
+                // 11. Substrate Remaining vs Temp
+                else if (yVar === 'sub_conc' && xVar === 'temp') {
+                    let opt = 0.7;
+                    let width = xNorm < opt ? 0.25 : 0.08;
+                    let rateEffect = Math.exp(-0.5 * Math.pow((xNorm - opt)/width, 2));
+                    yNorm = 1 - (rateEffect * 0.9);
+                    type = "rare_sub_temp";
+                }
+
+                // 12. Substrate vs Enzyme
+                else if (yVar === 'sub_conc' && xVar === 'enz_conc') {
+                    yNorm = Math.exp(-4 * xNorm);
+                    type = "rare_sub_enz";
+                }
+
+                // 13. Product vs Substrate (Linear)
+                else if ((yVar === 'prod_conc' || yVar === 'vol_prod') && xVar === 'sub_conc') {
+                     yNorm = xNorm; 
+                     type = "rare_prod_sub";
+                } 
+                else {
+                    valid = false;
+                }
+
+                // Scale and Draw
+                if (valid) {
+                    if (yNorm > 1) yNorm = 1;
+                    if (yNorm < 0) yNorm = 0;
+
+                    let px = margin.left + (xNorm * graphW);
+                    let py = (logicalHeight - margin.bottom) - (yNorm * graphH * 0.9);
+
+                    if (i === 0) ctx.moveTo(px, py);
+                    else ctx.lineTo(px, py);
+                }
+            }
+
+            if (valid) {
+                ctx.stroke();
+                return type;
+            } else {
+                return "invalid";
+            }
+        }
+
+        function updateExplanation(x, y, type) {
+            const box = document.getElementById('explanation-text');
+            let html = "";
+            const arrowUp = "&uarr;";
+            const arrowDown = "&darr;";
+
+            if (type === "invalid") {
+                html = "<div class='warning'>Not typical combination of variables</div>";
+            }
+            // STANDARD CASES
+            else if (y === 'rate' && x === 'sub_conc') {
+                html = `<ul>
+                    <li>Low [substrate]: [substrate] limiting factor; rate ${arrowUp} linearly with [substrate]</li>
+                    <li>High [substrate]: active sites saturated; [enzyme] limiting factor</li>
+                    <li>Rate plateaus at max rate of reaction</li>
+                </ul>`;
+            } else if (y === 'rate' && x === 'enz_conc') {
+                html = `<ul>
+                    <li>Excess substrate: rate ${arrowUp} linearly with [enzyme]</li>
+                    <li>Frequency of effective collisions ${arrowUp}</li>
+                    <li>More enzyme-substrate complexes formed per unit time</li>
+                </ul>`;
+            } else if (y === 'rate' && x === 'temp') {
+                html = `<ul>
+                    <li>Temp ${arrowUp}: kinetic energy ${arrowUp}; frequency of effective collisions ${arrowUp}</li>
+                    <li>Optimum temp: rate max</li>
+                    <li>Beyond optimum: high kinetic energy disrupts eg: ionic/hydrogen bonds; enzyme denatures; active site changes conformation; substrate no longer fits</li>
+                </ul>`;
+            } else if (y === 'rate' && x === 'ph') {
+                html = `<ul>
+                    <li>Optimum pH: rate max</li>
+                    <li>Extreme pH: alters charges on R groups in active site</li>
+                    <li>Disrupts eg: ionic/hydrogen bonds; enzyme denatures (eg: tertiary structure changes); active site loses complementary conformation</li>
+                </ul>`;
+            } else if ((y === 'vol_prod' || y === 'prod_conc') && x === 'time') {
+                html = `<ul>
+                    <li>Initial (t=0): gradient steepest (fastest rate); [substrate] highest</li>
+                    <li>Over time: gradient ${arrowDown}; [substrate] ${arrowDown}; frequency of effective collisions ${arrowDown}</li>
+                    <li>Plateau: reaction complete; equilibrium reached or substrate exhausted</li>
+                </ul>`;
+            } else if (y === 'sub_conc' && x === 'time') {
+                html = `<ul>
+                    <li>[substrate] ${arrowDown} exponentially over time</li>
+                    <li>Gradient (rate of reaction) ${arrowDown} over time; frequency of effective collisions ${arrowDown}</li>
+                </ul>`;
+            }
+            
+            // RARE / DERIVED CASES
+            else if (type === "rare_sub_ph") {
+                html = `<ul>
+                    <li>(Substrate remaining after fixed time)</li>
+                    <li>Optimum pH: rate highest &rarr; most substrate converted &rarr; lowest [substrate] remaining</li>
+                    <li>Extreme pH: denaturation &rarr; reaction stops &rarr; substrate remains high</li>
+                    <li>Narrow range compared to temperature graphs</li>
+                </ul>`;
+            } else if (type === "rare_rate_time") {
+                html = `<ul>
+                    <li>Rate ${arrowDown} over time</li>
+                    <li>[substrate] used up &rarr; frequency of effective collisions ${arrowDown}</li>
+                </ul>`;
+            } else if (type === "rare_prod_temp") {
+                html = `<ul>
+                    <li>(Total product formed in fixed time)</li>
+                    <li>Same profile as rate vs temperature</li>
+                    <li>Low product at low KE; max product at optimum; low product at high temp (denaturation)</li>
+                </ul>`;
+            } else if (type === "rare_prod_ph") {
+                html = `<ul>
+                    <li>(Total product formed in fixed time)</li>
+                    <li>Same profile as rate vs pH</li>
+                    <li>Denaturation at extreme pH prevents product formation</li>
+                </ul>`;
+            } else if (type === "rare_sub_temp") {
+                html = `<ul>
+                    <li>(Substrate remaining after fixed time)</li>
+                    <li>Optimum temp: rate highest &rarr; lowest remaining substrate</li>
+                    <li>Extremes (low temp or denaturation): reaction slow/stopped &rarr; substrate remains high</li>
+                </ul>`;
+            } else if (type === "rare_sub_enz") {
+                html = `<ul>
+                    <li>(Substrate remaining after fixed time)</li>
+                    <li>Higher [enzyme] = higher rate = more substrate used up</li>
+                    <li>[substrate] remaining ${arrowDown} as [enzyme] ${arrowUp}</li>
+                </ul>`;
+            } else if (type === "rare_prod_sub") {
+                html = `<ul>
+                    <li>Assuming reaction goes to completion</li>
+                    <li>Final amount of product formed directly proportional to initial [substrate]</li>
+                </ul>`;
+            }
+
+            box.innerHTML = html;
+        }
+
+        // Initialize
+        updateInteractive();
+    </script>
+</body>
+</html>
