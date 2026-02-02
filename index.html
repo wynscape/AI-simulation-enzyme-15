@@ -1,9 +1,8 @@
-<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Enzyme Kinetics Interactive</title>
+    <title>Enzyme - Kinetics Interactive</title>
     <style>
         :root {
             --bg-color: #ffffff;
@@ -37,14 +36,17 @@
             box-sizing: border-box;
             display: flex;
             flex-direction: column;
+            /* Ensure container doesn't stretch infinitely, allowing footer to sit at bottom */
+            margin-bottom: 20px; 
         }
 
-        /* Heading */
+        /* Heading - Font size increased by ~100% */
         h1 {
             margin: 0 0 5px 0;
             text-align: center;
             font-weight: 800;
-            font-size: clamp(0.9rem, 4vw, 1.4rem);
+            /* Previously ~1.4rem max, now ~2.8rem max */
+            font-size: clamp(1.8rem, 8vw, 2.8rem);
             color: #000;
             white-space: nowrap;
             overflow: hidden;
@@ -56,17 +58,6 @@
             font-size: 0.7rem;
             color: rgba(0, 0, 0, 0.5);
             margin-bottom: 20px;
-            font-weight: 500;
-            letter-spacing: 0.5px;
-        }
-
-        /* Footer Style */
-        .footer-text {
-            text-align: center;
-            font-size: 0.7rem;
-            color: rgba(0, 0, 0, 0.5);
-            /* Pushed down by space equivalent to 1 sentence (~45px) */
-            margin-top: 45px; 
             font-weight: 500;
             letter-spacing: 0.5px;
         }
@@ -163,7 +154,6 @@
             font-weight: 800;
             color: #000;
             white-space: nowrap;
-            /* Transparent background */
             background: transparent;
             padding: 2px 4px;
             pointer-events: none;
@@ -172,14 +162,12 @@
         }
 
         #y-label {
-            /* Positioned above the top margin to avoid arrow overlap */
             top: -10px;
             left: 10px;
             text-align: left;
         }
 
         #x-label {
-            /* Shifted up to be closer to axis (0px instead of -25px) */
             bottom: 0px; 
             right: 0;
             text-align: right;
@@ -213,12 +201,24 @@
             color: var(--warning-color);
             font-style: italic;
         }
+
+        /* Footer Style - Pushed to bottom of screen via flex-grow logic on body */
+        .footer-text {
+            text-align: center;
+            font-size: 0.7rem;
+            color: rgba(0, 0, 0, 0.5);
+            margin-top: auto; /* Pushes footer to bottom */
+            padding-bottom: 15px;
+            font-weight: 500;
+            letter-spacing: 0.5px;
+            width: 100%;
+        }
     </style>
 </head>
 <body>
 
     <div class="container">
-        <h1>Enzyme Kinetics</h1>
+        <h1>Enzyme - Kinetics</h1>
         <div class="sub-heading">Biology@RI</div>
 
         <div class="controls">
@@ -262,24 +262,26 @@
         <div class="explanation-box" id="explanation-text">
             <!-- Dynamic Text -->
         </div>
-
-        <div class="footer-text">All rights reserved</div>
     </div>
+
+    <!-- Footer outside container to sit at bottom of screen -->
+    <div class="footer-text">All rights reserved</div>
 
     <script>
         const canvas = document.getElementById('graphCanvas');
         const ctx = canvas.getContext('2d');
         
-        // High resolution setup
         const logicalWidth = 800;
         const logicalHeight = 560;
         canvas.width = logicalWidth;
         canvas.height = logicalHeight;
 
-        // Margins adjusted to ensure labels don't touch arrows
         const margin = { top: 40, right: 30, bottom: 50, left: 30 };
         const graphW = logicalWidth - margin.left - margin.right;
         const graphH = logicalHeight - margin.top - margin.bottom;
+
+        // Animation Global Variables
+        let animationId = null;
 
         function updateInteractive() {
             const yVar = document.getElementById('y-axis').value;
@@ -289,15 +291,40 @@
             document.getElementById('y-label').textContent = getLabelName(yVar);
             document.getElementById('x-label').textContent = getLabelName(xVar);
 
-            // Clear and Draw
-            ctx.clearRect(0, 0, logicalWidth, logicalHeight);
-            
-            drawGrid();
-            const graphType = drawCurve(xVar, yVar); 
-            drawAxes(); 
+            // Update Text (Immediate, no animation needed)
+            updateExplanation(xVar, yVar);
 
-            // Update Text
-            updateExplanation(xVar, yVar, graphType);
+            // Start Animation Loop
+            startGraphAnimation(xVar, yVar);
+        }
+
+        function startGraphAnimation(xVar, yVar) {
+            if (animationId) {
+                cancelAnimationFrame(animationId);
+            }
+
+            let startTime = null;
+            const duration = 1000; // 1 second duration for moderate speed
+
+            function step(timestamp) {
+                if (!startTime) startTime = timestamp;
+                const elapsed = timestamp - startTime;
+                let progress = elapsed / duration;
+
+                if (progress > 1) progress = 1;
+
+                // Draw Frame
+                ctx.clearRect(0, 0, logicalWidth, logicalHeight);
+                drawGrid();
+                const graphType = drawCurve(xVar, yVar, progress);
+                drawAxes(); // Draw axes on top
+
+                if (progress < 1) {
+                    animationId = requestAnimationFrame(step);
+                }
+            }
+
+            animationId = requestAnimationFrame(step);
         }
 
         function getLabelName(val) {
@@ -320,12 +347,10 @@
             ctx.lineWidth = 1;
 
             for (let i = 0; i <= 10; i++) {
-                // X grid
                 let x = margin.left + (graphW * i / 10);
                 ctx.moveTo(x, margin.top);
                 ctx.lineTo(x, logicalHeight - margin.bottom);
 
-                // Y grid
                 let y = margin.top + (graphH * i / 10);
                 ctx.moveTo(margin.left, y);
                 ctx.lineTo(logicalWidth - margin.right, y);
@@ -358,7 +383,7 @@
             ctx.stroke();
         }
 
-        function drawCurve(xVar, yVar) {
+        function drawCurve(xVar, yVar, progress) {
             ctx.beginPath();
             ctx.strokeStyle = "#aa00ff"; // Purple
             ctx.lineWidth = 6; 
@@ -366,10 +391,14 @@
             ctx.lineJoin = "round";
 
             const steps = 400;
+            // Limit loop based on animation progress
+            const maxStep = Math.floor(steps * progress);
+
             let type = "standard"; 
             let valid = true;
+            let started = false;
 
-            for (let i = 0; i <= steps; i++) {
+            for (let i = 0; i <= maxStep; i++) {
                 let xNorm = i / steps; 
                 let yNorm = 0;
 
@@ -377,43 +406,41 @@
                 
                 // 1. Rate vs [Substrate] 
                 if (yVar === 'rate' && xVar === 'sub_conc') {
-                    // Reverted to logic that hits 1.0 explicitly and stays horizontal
                     let val = (1.25 * xNorm) / (0.15 + xNorm); 
                     if (val > 1.0) val = 1.0; 
                     yNorm = val;
                 }
                 
-                // 2. Rate vs [Enzyme] (Linear)
+                // 2. Rate vs [Enzyme]
                 else if (yVar === 'rate' && xVar === 'enz_conc') {
                     yNorm = xNorm;
                 }
 
-                // 3. Rate vs Temp (Skewed Bell)
+                // 3. Rate vs Temp
                 else if (yVar === 'rate' && xVar === 'temp') {
                     let opt = 0.7; 
-                    let width = xNorm < opt ? 0.25 : 0.08;
+                    // Smoothed right side: 0.12 instead of 0.08
+                    let width = xNorm < opt ? 0.25 : 0.12; 
                     yNorm = Math.exp(-0.5 * Math.pow((xNorm - opt)/width, 2));
                 }
 
-                // 4. Rate vs pH (Bell centered)
+                // 4. Rate vs pH
                 else if (yVar === 'rate' && xVar === 'ph') {
-                    let center = 0.55; // Between grid 5 and 6
+                    let center = 0.55; 
                     yNorm = Math.exp(-50 * Math.pow(xNorm - center, 2));
                 }
 
-                // 5. Product vs Time (Plateau)
+                // 5. Product vs Time
                 else if ((yVar === 'vol_prod' || yVar === 'prod_conc') && xVar === 'time') {
                     yNorm = 1 - Math.exp(-5 * xNorm);
                 }
 
-                // 6. Substrate vs Time (Decay)
+                // 6. Substrate vs Time
                 else if (yVar === 'sub_conc' && xVar === 'time') {
                     yNorm = Math.exp(-5 * xNorm);
                 }
 
-                /* --- RARE / DERIVED COMBINATIONS --- */
-
-                // 7. [Substrate] vs pH (Slim Inverse Bell)
+                /* --- RARE / DERIVED --- */
                 else if (yVar === 'sub_conc' && xVar === 'ph') {
                     let center = 0.55; 
                     let widthCoef = 150; 
@@ -421,44 +448,34 @@
                     yNorm = 1 - (rateEffect * 0.95);
                     type = "rare_sub_ph"; 
                 }
-
-                // 8. Rate vs Time (Decay)
                 else if (yVar === 'rate' && xVar === 'time') {
                     yNorm = Math.exp(-5 * xNorm);
                     type = "rare_rate_time";
                 }
-
-                // 9. Product vs Temp
+                // Product vs Temp (Same smoothing as Rate vs Temp)
                 else if ((yVar === 'vol_prod' || yVar === 'prod_conc') && xVar === 'temp') {
                     let opt = 0.7;
-                    let width = xNorm < opt ? 0.25 : 0.08;
+                    // Smoothed right side: 0.12 instead of 0.08
+                    let width = xNorm < opt ? 0.25 : 0.12;
                     yNorm = Math.exp(-0.5 * Math.pow((xNorm - opt)/width, 2));
                     type = "rare_prod_temp";
                 }
-
-                // 10. Product vs pH
                 else if ((yVar === 'vol_prod' || yVar === 'prod_conc') && xVar === 'ph') {
                     let center = 0.55;
                     yNorm = Math.exp(-50 * Math.pow(xNorm - center, 2));
                     type = "rare_prod_ph";
                 }
-
-                // 11. Substrate Remaining vs Temp
                 else if (yVar === 'sub_conc' && xVar === 'temp') {
                     let opt = 0.7;
-                    let width = xNorm < opt ? 0.25 : 0.08;
+                    let width = xNorm < opt ? 0.25 : 0.12;
                     let rateEffect = Math.exp(-0.5 * Math.pow((xNorm - opt)/width, 2));
                     yNorm = 1 - (rateEffect * 0.9);
                     type = "rare_sub_temp";
                 }
-
-                // 12. Substrate vs Enzyme
                 else if (yVar === 'sub_conc' && xVar === 'enz_conc') {
                     yNorm = Math.exp(-4 * xNorm);
                     type = "rare_sub_enz";
                 }
-
-                // 13. Product vs Substrate (Linear)
                 else if ((yVar === 'prod_conc' || yVar === 'vol_prod') && xVar === 'sub_conc') {
                      yNorm = xNorm; 
                      type = "rare_prod_sub";
@@ -467,7 +484,6 @@
                     valid = false;
                 }
 
-                // Scale and Draw
                 if (valid) {
                     if (yNorm > 1) yNorm = 1;
                     if (yNorm < 0) yNorm = 0;
@@ -475,8 +491,12 @@
                     let px = margin.left + (xNorm * graphW);
                     let py = (logicalHeight - margin.bottom) - (yNorm * graphH * 0.9);
 
-                    if (i === 0) ctx.moveTo(px, py);
-                    else ctx.lineTo(px, py);
+                    if (!started) {
+                        ctx.moveTo(px, py);
+                        started = true;
+                    } else {
+                        ctx.lineTo(px, py);
+                    }
                 }
             }
 
@@ -488,7 +508,32 @@
             }
         }
 
-        function updateExplanation(x, y, type) {
+        function updateExplanation(x, y, type = "standard") {
+            // Re-determine type if not passed, although we calculate it inside drawCurve for rendering. 
+            // We can infer type from variables for explanation purposes:
+            if (!type) type = "standard";
+            
+            // Helper to match logic inside drawCurve if needed, but we can pass it from previous knowledge
+            // Actually, we need to know the 'type' before animation finishes to show text immediately.
+            // Let's re-evaluate type quickly.
+            if ((y === 'vol_prod' || y === 'prod_conc') && x === 'temp') type = "rare_prod_temp";
+            else if (y === 'sub_conc' && x === 'ph') type = "rare_sub_ph";
+            else if (y === 'rate' && x === 'time') type = "rare_rate_time";
+            else if ((y === 'vol_prod' || y === 'prod_conc') && x === 'ph') type = "rare_prod_ph";
+            else if (y === 'sub_conc' && x === 'temp') type = "rare_sub_temp";
+            else if (y === 'sub_conc' && x === 'enz_conc') type = "rare_sub_enz";
+            else if ((y === 'prod_conc' || y === 'vol_prod') && x === 'sub_conc') type = "rare_prod_sub";
+            
+            // Basic validity check
+            const map = {
+                "rate": ["sub_conc", "enz_conc", "temp", "ph", "time"],
+                "sub_conc": ["time", "ph", "temp", "enz_conc"],
+                "prod_conc": ["time", "temp", "ph", "sub_conc"],
+                "vol_prod": ["time", "temp", "ph", "sub_conc"]
+            };
+            
+            if (!map[y].includes(x)) type = "invalid";
+
             const box = document.getElementById('explanation-text');
             let html = "";
             const arrowUp = "&uarr;";
