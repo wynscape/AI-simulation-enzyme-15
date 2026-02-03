@@ -11,6 +11,8 @@
             --grid-color: #d1d1d1;
             --highlight-bg: rgba(0, 0, 0, 0.05);
             --warning-color: #444; /* Dark Grey */
+            --btn-color: #333333; /* Dark Grey for button */
+            --btn-hover: #000000; /* Black for hover */
         }
 
         body {
@@ -36,16 +38,14 @@
             box-sizing: border-box;
             display: flex;
             flex-direction: column;
-            /* Ensure container doesn't stretch infinitely, allowing footer to sit at bottom */
             margin-bottom: 20px; 
         }
 
-        /* Heading - Font size increased by ~100% */
+        /* Heading */
         h1 {
             margin: 0 0 5px 0;
             text-align: center;
             font-weight: 800;
-            /* Previously ~1.4rem max, now ~2.8rem max */
             font-size: clamp(1.8rem, 8vw, 2.8rem);
             color: #000;
             white-space: nowrap;
@@ -173,6 +173,28 @@
             text-align: right;
         }
 
+        /* Plot Button - Small, Centered, Dark Grey */
+        .plot-btn {
+            background-color: var(--btn-color);
+            color: white;
+            font-size: 0.85rem;
+            font-weight: 700;
+            padding: 8px 24px;
+            border: none;
+            border-radius: 20px; /* Pill shape */
+            cursor: pointer;
+            width: fit-content; /* Size reduced to fit text */
+            margin: 0 auto 15px auto; /* Center horizontally */
+            display: block;
+            transition: background-color 0.2s ease, transform 0.1s ease;
+            box-shadow: 0 3px 6px rgba(0,0,0,0.15);
+        }
+
+        .plot-btn:active {
+            transform: scale(0.95);
+            background-color: var(--btn-hover);
+        }
+
         /* Explanation Box */
         .explanation-box {
             background-color: var(--highlight-bg);
@@ -182,6 +204,16 @@
             font-size: 0.85rem;
             line-height: 1.5;
             border: 1px solid rgba(0,0,0,0.05);
+            
+            /* Hidden initially */
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.8s ease;
+        }
+
+        .explanation-box.visible {
+            opacity: 1;
+            visibility: visible;
         }
 
         .explanation-box ul {
@@ -202,12 +234,12 @@
             font-style: italic;
         }
 
-        /* Footer Style - Pushed to bottom of screen via flex-grow logic on body */
+        /* Footer Style */
         .footer-text {
             text-align: center;
             font-size: 0.7rem;
             color: rgba(0, 0, 0, 0.5);
-            margin-top: auto; /* Pushes footer to bottom */
+            margin-top: auto; 
             padding-bottom: 15px;
             font-weight: 500;
             letter-spacing: 0.5px;
@@ -225,7 +257,7 @@
             <div class="control-group">
                 <div class="label-bold">y axis</div>
                 <div class="select-wrapper">
-                    <select id="y-axis" onchange="updateInteractive()">
+                    <select id="y-axis" onchange="resetGraph()">
                         <option value="rate">Rate of Reaction</option>
                         <option value="sub_conc">Substrate Concentration</option>
                         <option value="prod_conc">Product Concentration</option>
@@ -238,7 +270,7 @@
             <div class="control-group">
                 <div class="label-bold">x axis</div>
                 <div class="select-wrapper">
-                    <select id="x-axis" onchange="updateInteractive()">
+                    <select id="x-axis" onchange="resetGraph()">
                         <option value="time">Time</option>
                         <option value="sub_conc">Substrate Concentration</option>
                         <option value="enz_conc">Enzyme Concentration</option>
@@ -259,12 +291,15 @@
             <div id="x-label" class="axis-label">Time</div>
         </div>
 
+        <!-- Button -->
+        <button class="plot-btn" onclick="animateGraph()">Plot graph</button>
+
         <div class="explanation-box" id="explanation-text">
             <!-- Dynamic Text -->
         </div>
     </div>
 
-    <!-- Footer outside container to sit at bottom of screen -->
+    <!-- Footer -->
     <div class="footer-text">All rights reserved</div>
 
     <script>
@@ -283,7 +318,16 @@
         // Animation Global Variables
         let animationId = null;
 
-        function updateInteractive() {
+        // Initialize view
+        resetGraph();
+
+        function resetGraph() {
+            // Stop any running animation
+            if (animationId) {
+                cancelAnimationFrame(animationId);
+                animationId = null;
+            }
+
             const yVar = document.getElementById('y-axis').value;
             const xVar = document.getElementById('x-axis').value;
 
@@ -291,20 +335,33 @@
             document.getElementById('y-label').textContent = getLabelName(yVar);
             document.getElementById('x-label').textContent = getLabelName(xVar);
 
-            // Update Text (Immediate, no animation needed)
-            updateExplanation(xVar, yVar);
+            // Hide Explanation
+            const explBox = document.getElementById('explanation-text');
+            explBox.classList.remove('visible');
 
-            // Start Animation Loop
-            startGraphAnimation(xVar, yVar);
+            // Clear Canvas and Draw Empty Grid
+            ctx.clearRect(0, 0, logicalWidth, logicalHeight);
+            drawGrid();
+            drawAxes();
         }
 
-        function startGraphAnimation(xVar, yVar) {
+        function animateGraph() {
+            const yVar = document.getElementById('y-axis').value;
+            const xVar = document.getElementById('x-axis').value;
+
+            // Update text content immediately so it's ready when revealed
+            updateExplanationText(xVar, yVar);
+
+            // Hide text initially in case it was already open
+            document.getElementById('explanation-text').classList.remove('visible');
+
             if (animationId) {
                 cancelAnimationFrame(animationId);
             }
 
             let startTime = null;
-            const duration = 1000; // 1 second duration for moderate speed
+            // 3000ms duration
+            const duration = 3000; 
 
             function step(timestamp) {
                 if (!startTime) startTime = timestamp;
@@ -316,11 +373,18 @@
                 // Draw Frame
                 ctx.clearRect(0, 0, logicalWidth, logicalHeight);
                 drawGrid();
-                const graphType = drawCurve(xVar, yVar, progress);
+                
+                // Draw curve partially based on progress
+                drawCurve(xVar, yVar, progress);
+                
                 drawAxes(); // Draw axes on top
 
                 if (progress < 1) {
                     animationId = requestAnimationFrame(step);
+                } else {
+                    // Animation Complete: Show Explanation
+                    document.getElementById('explanation-text').classList.add('visible');
+                    animationId = null;
                 }
             }
 
@@ -394,7 +458,6 @@
             // Limit loop based on animation progress
             const maxStep = Math.floor(steps * progress);
 
-            let type = "standard"; 
             let valid = true;
             let started = false;
 
@@ -419,7 +482,6 @@
                 // 3. Rate vs Temp
                 else if (yVar === 'rate' && xVar === 'temp') {
                     let opt = 0.7; 
-                    // Smoothed right side: 0.12 instead of 0.08
                     let width = xNorm < opt ? 0.25 : 0.12; 
                     yNorm = Math.exp(-0.5 * Math.pow((xNorm - opt)/width, 2));
                 }
@@ -446,39 +508,30 @@
                     let widthCoef = 150; 
                     let rateEffect = Math.exp(-widthCoef * Math.pow(xNorm - center, 2));
                     yNorm = 1 - (rateEffect * 0.95);
-                    type = "rare_sub_ph"; 
                 }
                 else if (yVar === 'rate' && xVar === 'time') {
                     yNorm = Math.exp(-5 * xNorm);
-                    type = "rare_rate_time";
                 }
-                // Product vs Temp (Same smoothing as Rate vs Temp)
                 else if ((yVar === 'vol_prod' || yVar === 'prod_conc') && xVar === 'temp') {
                     let opt = 0.7;
-                    // Smoothed right side: 0.12 instead of 0.08
                     let width = xNorm < opt ? 0.25 : 0.12;
                     yNorm = Math.exp(-0.5 * Math.pow((xNorm - opt)/width, 2));
-                    type = "rare_prod_temp";
                 }
                 else if ((yVar === 'vol_prod' || yVar === 'prod_conc') && xVar === 'ph') {
                     let center = 0.55;
                     yNorm = Math.exp(-50 * Math.pow(xNorm - center, 2));
-                    type = "rare_prod_ph";
                 }
                 else if (yVar === 'sub_conc' && xVar === 'temp') {
                     let opt = 0.7;
                     let width = xNorm < opt ? 0.25 : 0.12;
                     let rateEffect = Math.exp(-0.5 * Math.pow((xNorm - opt)/width, 2));
                     yNorm = 1 - (rateEffect * 0.9);
-                    type = "rare_sub_temp";
                 }
                 else if (yVar === 'sub_conc' && xVar === 'enz_conc') {
                     yNorm = Math.exp(-4 * xNorm);
-                    type = "rare_sub_enz";
                 }
                 else if ((yVar === 'prod_conc' || yVar === 'vol_prod') && xVar === 'sub_conc') {
                      yNorm = xNorm; 
-                     type = "rare_prod_sub";
                 } 
                 else {
                     valid = false;
@@ -502,20 +555,13 @@
 
             if (valid) {
                 ctx.stroke();
-                return type;
-            } else {
-                return "invalid";
             }
         }
 
-        function updateExplanation(x, y, type = "standard") {
-            // Re-determine type if not passed, although we calculate it inside drawCurve for rendering. 
-            // We can infer type from variables for explanation purposes:
-            if (!type) type = "standard";
+        function updateExplanationText(x, y) {
+            let type = "standard";
             
-            // Helper to match logic inside drawCurve if needed, but we can pass it from previous knowledge
-            // Actually, we need to know the 'type' before animation finishes to show text immediately.
-            // Let's re-evaluate type quickly.
+            // Determine type logic
             if ((y === 'vol_prod' || y === 'prod_conc') && x === 'temp') type = "rare_prod_temp";
             else if (y === 'sub_conc' && x === 'ph') type = "rare_sub_ph";
             else if (y === 'rate' && x === 'time') type = "rare_rate_time";
@@ -524,14 +570,13 @@
             else if (y === 'sub_conc' && x === 'enz_conc') type = "rare_sub_enz";
             else if ((y === 'prod_conc' || y === 'vol_prod') && x === 'sub_conc') type = "rare_prod_sub";
             
-            // Basic validity check
+            // Check validity
             const map = {
                 "rate": ["sub_conc", "enz_conc", "temp", "ph", "time"],
                 "sub_conc": ["time", "ph", "temp", "enz_conc"],
                 "prod_conc": ["time", "temp", "ph", "sub_conc"],
                 "vol_prod": ["time", "temp", "ph", "sub_conc"]
             };
-            
             if (!map[y].includes(x)) type = "invalid";
 
             const box = document.getElementById('explanation-text');
@@ -626,9 +671,6 @@
 
             box.innerHTML = html;
         }
-
-        // Initialize
-        updateInteractive();
     </script>
 </body>
 </html>
