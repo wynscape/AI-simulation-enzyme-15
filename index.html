@@ -49,7 +49,7 @@
             box-sizing: border-box;
             display: flex;
             flex-direction: column;
-            padding: 10px; /* Very compact padding */
+            padding: 10px; /* Compact padding */
         }
 
         /* Heading - Compact */
@@ -130,13 +130,16 @@
             border-top: 5px solid #555;
         }
 
-        /* Graph Area - Flex Grow to take available space */
+        /* Graph Area - Reduced Area by ~20% */
         .graph-wrapper {
             position: relative;
-            width: 100%;
-            flex-grow: 1; /* Key to filling space */
-            min-height: 0; /* Prevents overflow */
-            margin-bottom: 5px;
+            /* Width reduced to 90% and centered */
+            width: 90%; 
+            margin: 0 auto 5px auto;
+            /* Height limited to 35% of viewport instead of filling all space */
+            height: 35dvh; 
+            min-height: 200px;
+            flex-shrink: 0;
         }
 
         .canvas-container {
@@ -149,6 +152,8 @@
             display: block;
             width: 100%;
             height: 100%;
+            /* Ensure graph scales nicely within the reduced box */
+            object-fit: contain; 
         }
 
         /* Axis Labels */
@@ -206,11 +211,10 @@
             line-height: 1.35;
             border: 1px solid rgba(0,0,0,0.05);
             
-            /* Vertical flexibility */
-            flex-shrink: 0; /* Do not squash too much */
-            height: 25%;    /* Occupy roughly bottom quarter */
-            max-height: 150px;
-            overflow-y: auto; /* Internal scroll only */
+            /* Fill remaining space comfortably but allow scroll */
+            flex-grow: 1;
+            max-height: 25vh; /* Limit height so footer stays visible */
+            overflow-y: auto; 
             
             opacity: 0;
             visibility: hidden;
